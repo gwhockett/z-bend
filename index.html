@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Z-Bend Calculator</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f4; --card: #ffffff; --text: #1d1d1b; --muted: #55554f;
+    --border: #d9d9d4; --accent: #1f5fbf; --warn-bg: #fff3d6; --warn-text: #6b4a00;
+    --part: #8db3ec; --guide: #8a8a84; --ok-bg: #e1f3e3; --ok-text: #1d5a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151515; --card: #202020; --text: #ececea; --muted: #b0b0aa;
+      --border: #3a3a37; --accent: #6ea4f4; --warn-bg: #3a2f10; --warn-text: #f0d48a;
+      --part: #4a74b8; --guide: #7a7a74; --ok-bg: #16301b; --ok-text: #9fdcab;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 0.95rem; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 3px; }
+  label:first-of-type { margin-top: 0; }
+  input, select { width: 100%; padding: 7px 9px; font: inherit; color: var(--text);
+                  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: 0; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  tr.key td { color: var(--accent); }
+  .warn { background: var(--warn-bg); color: var(--warn-text); border-radius: 6px;
+          padding: 8px 10px; margin-top: 8px; font-size: 0.88rem; }
+  .ok { background: var(--ok-bg); color: var(--ok-text); border-radius: 6px;
+        padding: 8px 10px; margin-top: 8px; font-size: 0.88rem; }
+  .full { grid-column: 1 / -1; }
+  svg { width: 100%; height: auto; display: block; }
+  svg .dl { stroke: var(--muted); stroke-width: 1; fill: none; }
+  svg .ex2 { stroke: var(--muted); stroke-width: .8; fill: none; }
+  svg .ext { stroke: var(--guide); stroke-width: .8; stroke-dasharray: 4 3; fill: none; }
+  svg .tx { fill: var(--text); font-size: 12px; font-family: inherit; }
+  svg .body { fill: none; stroke: var(--part); stroke-linejoin: round; }
+  svg .outline { fill: none; stroke: var(--text); opacity: .6; stroke-linejoin: round; }
+  svg .dot { fill: var(--text); }
+  svg .arrowhead { fill: var(--muted); }
+  .hint { color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Z-Bend Calculator</h1>
+  <p class="sub">Press brake air bending. All lengths in mm. Runs entirely in your browser, nothing is sent anywhere.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Inputs</h2>
+      <div class="row2">
+        <div><label for="t">Thickness (mm)</label><input id="t" type="number" step="0.05" value="2"></div>
+        <div><label for="r">Inside radius (mm)</label><input id="r" type="number" step="0.05" value="2"></div>
+      </div>
+      <div class="row2">
+        <div><label for="mode">Angle is</label>
+          <select id="mode">
+            <option value="included" selected>Included angle</option>
+            <option value="deflection">Deflection per bend</option>
+          </select></div>
+        <div><label for="angle">Angle (deg)</label><input id="angle" type="number" step="1" value="100"></div>
+      </div>
+      <div class="row2">
+        <div><label for="by">Specify by</label>
+          <select id="by">
+            <option value="flat" selected>Web flat</option>
+            <option value="offset">Offset height</option>
+          </select></div>
+        <div><label for="val">Value (mm)</label><input id="val" type="number" step="0.5" value="4"></div>
+      </div>
+      <p class="hint">Checks the design against material limits for annealed 316 sheet. Web flat is the straight length between the two bend arcs. Offset is measured between the same-side faces of the two flats.</p>
+    </div>
+
+    <div class="card">
+      <h2>Results</h2>
+      <table id="results"></table>
+      <div id="warnings"></div>
+    </div>
+
+    <div class="card full">
+      <h2>Cross section (to scale)</h2>
+      <svg id="profile" viewBox="0 0 840 400" role="img" aria-label="Dimensioned Z-bend cross section"></svg>
+      <p class="hint">Drawn from the dimensions above. Flange lengths are arbitrary. Offset is measured between the same-side faces of the two flats; the angle is shown at the centerline virtual sharp.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ids = ["t","r","mode","angle","by","val"];
+  var el = {};
+  ids.forEach(function (id) { el[id] = document.getElementById(id); });
+
+  function n(id) { var x = parseFloat(el[id].value); return isFinite(x) ? x : NaN; }
+  function f(x) { return x.toFixed(2) + " mm"; }
+
+  function calc() {
+    var t = n("t"), r = n("r"), angle = n("angle"), val = n("val");
+    var out = document.getElementById("results");
+    var warn = document.getElementById("warnings");
+    warn.innerHTML = "";
+
+    var defl = el.mode.value === "included" ? 180 - angle : angle;
+    if (!(t > 0 && r > 0 && val >= 0 && defl > 0 && defl < 180)) {
+      out.innerHTML = "<tr><td>Enter valid positive values (deflection must be between 0 and 180 deg).</td><td></td></tr>";
+      document.getElementById("profile").innerHTML = "";
+      return;
+    }
+
+    var rad = defl * Math.PI / 180;
+    var sn = Math.sin(rad), cs = Math.cos(rad);
+    var Rm = r + t / 2;
+    var setback = (r + t) * Math.tan(rad / 2);
+    var bendsOnly = 2 * Rm * (1 - cs);
+    var strain = t / (2 * r + t) * 100;
+
+    var web, offset, msgs = [];
+    if (el.by.value === "flat") {
+      web = val;
+      offset = web * sn + bendsOnly;
+    } else {
+      offset = val;
+      if (offset < bendsOnly) {
+        web = NaN;
+        msgs.push("Offset is below the minimum possible with these bends (" + bendsOnly.toFixed(2) + " mm with no web flat). Use a larger angle or a smaller radius.");
+      } else {
+        web = (offset - bendsOnly) / sn;
+      }
+    }
+
+    var rows = [
+      ["Outside radius", f(r + t)],
+      ["Included angle / deflection", (180 - defl).toFixed(0) + " / " + defl.toFixed(0) + " deg"],
+      ["Outer-fibre strain at bend", strain.toFixed(0) + " %"],
+      ["Setback per bend", f(setback)]
+    ];
+    if (isFinite(web)) {
+      rows.push(["Web flat (tangent to tangent)", f(web), true]);
+      rows.push(["Offset height", f(offset), true]);
+      rows.push(["Bend-line spacing (virtual sharps)", f(web + 2 * setback)]);
+    }
+    rows.push(["Min offset (no web flat)", f(bendsOnly)]);
+    out.innerHTML = rows.map(function (row) {
+      return "<tr" + (row[2] ? ' class="key"' : "") + "><td>" + row[0] + "</td><td>" + row[1] + "</td></tr>";
+    }).join("");
+
+    var bad = msgs.length > 0;
+    if (r < t) { msgs.push("Inside radius is under 1t. The outer fibre strains past what annealed 316 can take; expect cracking."); bad = true; }
+    else if (r < 1.5 * t) msgs.push("Inside radius is " + (r / t).toFixed(2) + "t. Fine for fully annealed 316 only. Specify annealed on the drawing; half-hard or cold-worked material will crack.");
+    if (strain > 40) { msgs.push("Outer-fibre strain is above about 40%, the typical minimum elongation of annealed 316."); bad = true; }
+    if (isFinite(web) && web < 2 * t) { msgs.push("Web flat is under 2t (" + (2 * t).toFixed(1) + " mm). The two strained zones overlap and the web will not stay straight."); bad = true; }
+
+    var html = msgs.map(function (m) { return '<div class="warn">' + m + "</div>"; }).join("");
+    if (!bad && msgs.length === 0) html = '<div class="ok">Within material limits for annealed 316.</div>';
+    warn.innerHTML = html;
+
+    if (isFinite(web)) draw(t, r, defl, web);
+    else document.getElementById("profile").innerHTML = "";
+  }
+
+  function draw(t, r, defl, Lw) {
+    var th = defl * Math.PI / 180, sn = Math.sin(th), cs = Math.cos(th), hf = th / 2;
+    var Rm = r + t / 2, Ro = r + t;
+    var F = Math.max(8, 1.5 * Lw, 3 * t);
+
+    var T1b = [F + Rm * sn, Rm * (1 - cs)];
+    var T2 = [T1b[0] + Lw * cs, T1b[1] + Lw * sn];
+    var C1 = [F, Rm];
+    var C2 = [T2[0] + Rm * sn, T2[1] - Rm * cs];
+    var T2b = [C2[0], C2[1] + Rm];
+    var xEnd = T2b[0] + F, off = T2b[1];
+
+    var W = 840, H = 400, mL = 100, mR = 150, mT = 60, mB = 70;
+    var k = Math.min((W - mL - mR) / xEnd, (H - mT - mB) / (off + t));
+    var ox = mL + ((W - mL - mR) - xEnd * k) / 2;
+    var top = mT + ((H - mT - mB) - (off + t) * k) / 2;
+    var oy = top + (off + t / 2) * k;
+    function X(x) { return ox + x * k; }
+    function Y(y) { return oy - y * k; }
+    function px(p) { return [X(p[0]), Y(p[1])]; }
+    function s1(p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }
+    function pt(p) { return s1(px(p)); }
+
+    function line(cls, a, b, arrows, end) {
+      var m = arrows ? ' marker-start="url(#ah)" marker-end="url(#ah)"' : (end ? ' marker-end="url(#ah)"' : "");
+      return '<line class="' + cls + '" x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) +
+             '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '"' + m + "/>";
+    }
+    function txt(x, y, s, anchor) {
+      return '<text class="tx" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "start") + '">' + s + "</text>";
+    }
+    function add(a, b, kk) { return [a[0] + b[0] * kk, a[1] + b[1] * kk]; }
+
+    var g = [];
+    g.push('<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0L10 5L0 10z"/></marker></defs>');
+
+    // part: centerline stroked at material thickness
+    var R = (Rm * k).toFixed(1);
+    var d = "M" + pt([0, 0]) + " L" + pt([F, 0]) +
+            " A" + R + " " + R + " 0 0 0 " + pt(T1b) +
+            " L" + pt(T2) +
+            " A" + R + " " + R + " 0 0 1 " + pt(T2b) +
+            " L" + pt([xEnd, off]);
+    g.push('<path class="outline" d="' + d + '" stroke-width="' + (t * k + 2.5).toFixed(1) + '"/>');
+    g.push('<path class="body" d="' + d + '" stroke-width="' + (t * k).toFixed(1) + '"/>');
+
+    // thickness, at the left end of flat 1
+    var xL = X(0) - 26, yT = Y(t / 2), yB = Y(-t / 2);
+    g.push(line("ex2", [X(0) - 3, yT], [xL - 5, yT]));
+    g.push(line("ex2", [X(0) - 3, yB], [xL - 5, yB]));
+    g.push(line("dl", [xL, yT], [xL, yB], true));
+    g.push(txt(xL - 9, (yT + yB) / 2 + 4, "t = " + t.toFixed(2), "end"));
+
+    // inside radius, bend 1 (centre above the part)
+    var c1 = px(C1);
+    var e1 = px([C1[0] + r * Math.sin(hf), C1[1] - r * Math.cos(hf)]);
+    g.push(line("dl", c1, e1, false, true));
+    g.push('<circle class="dot" cx="' + c1[0].toFixed(1) + '" cy="' + c1[1].toFixed(1) + '" r="2.5"/>');
+    g.push(txt(c1[0] - 9, c1[1] + 4, "R " + r.toFixed(2) + " inside", "end"));
+
+    // outside radius, bend 2 (centre below the part)
+    var c2 = px(C2);
+    var e2 = px([C2[0] - Ro * Math.sin(hf), C2[1] + Ro * Math.cos(hf)]);
+    g.push(line("dl", c2, e2, false, true));
+    g.push('<circle class="dot" cx="' + c2[0].toFixed(1) + '" cy="' + c2[1].toFixed(1) + '" r="2.5"/>');
+    g.push(txt(c2[0] + 9, c2[1] + 4, "R " + Ro.toFixed(2) + " outside", "start"));
+
+    // angle at the centreline virtual sharp of bend 1
+    if (defl <= 160) {
+      var S1 = px([F + Rm * Math.tan(hf), 0]);
+      var ra = 34;
+      g.push(line("ext", S1, [S1[0] + 170, S1[1]]));
+      g.push(line("ext", S1, px(T1b)));
+      g.push('<path class="dl" d="M' + (S1[0] + ra).toFixed(1) + " " + S1[1].toFixed(1) +
+             " A" + ra + " " + ra + " 0 0 0 " + (S1[0] + ra * cs).toFixed(1) + " " + (S1[1] - ra * sn).toFixed(1) + '"/>');
+      g.push(txt(S1[0] + 46, S1[1] - 22, defl.toFixed(0) + "\u00b0 deflection"));
+      g.push(txt(S1[0] + 46, S1[1] - 8, "(" + (180 - defl).toFixed(0) + "\u00b0 included)"));
+    }
+
+    // web flat (tangent to tangent), dimensioned on the right side of the web
+    if (Lw * k > 12) {
+      var nr = [sn, cs];                       // right-hand normal in screen space
+      var h = t * k / 2, offp = h + 30;
+      var a0 = px(T1b), b0 = px(T2);
+      var A = add(a0, nr, offp), B = add(b0, nr, offp);
+      g.push(line("ex2", add(a0, nr, h + 3), add(a0, nr, offp + 5)));
+      g.push(line("ex2", add(b0, nr, h + 3), add(b0, nr, offp + 5)));
+      g.push(line("dl", A, B, true));
+      var mid = add([(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], nr, 12);
+      var startAnchor = sn > 0.35;
+      g.push(txt(mid[0] + (startAnchor ? 4 : 0), mid[1] + 4, "web flat " + Lw.toFixed(2), startAnchor ? "start" : "middle"));
+    }
+
+    // offset between the bottom faces of the two flats, on the right
+    var xd = X(xEnd) + 46, yA = Y(-t / 2), yB2 = Y(off - t / 2);
+    g.push(line("ext", [X(T1b[0]), yA], [xd + 6, yA]));
+    g.push(line("ext", [X(xEnd) + 4, yB2], [xd + 6, yB2]));
+    g.push(line("dl", [xd, yA], [xd, yB2], true));
+    g.push(txt(xd + 9, (yA + yB2) / 2 + 4, "offset " + off.toFixed(2)));
+
+    document.getElementById("profile").innerHTML = g.join("");
+  }
+
+  ids.forEach(function (id) { el[id].addEventListener("input", calc); });
+  calc();
+})();
+</script>
+</body>
+</html>
